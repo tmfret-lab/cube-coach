@@ -16,6 +16,16 @@ export function identity(size) {
   return p;
 }
 
+// Inner slices a reduction may turn freely: 2..(N-1)/2 on odd cubes (never
+// the middle slice, it would move the fixed centers), 2..N/2 on even cubes
+// (there is no fixed middle, slice N/2 from R and from L are different layers).
+export function innerLayers(N) {
+  const hi = N % 2 ? (N - 1) / 2 : N / 2;
+  const out = [];
+  for (let k = 2; k <= hi; k++) out.push(k);
+  return out;
+}
+
 // Every single-layer move on layers `layers` (1 = outer), all three amounts.
 export function sliceMoves(layers, faces = 'URFDLB', amts = [1, 2, 3]) {
   const out = [];

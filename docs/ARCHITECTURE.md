@@ -18,7 +18,8 @@ Static phone web app. Vanilla JS ES modules, no build step. Three.js is vendored
   `{ stage: 'centers'|'edges'|'parity'|'3x3', title: string, explanation: string, moves: Move[], algId?: string }`
 
 ## Puzzle interface (`src/core/puzzle.js`, `src/puzzles/nxn/index.js`)
-`makeNxN(N)` returns
+`src/app.js` registers `makeNxN(N)` for N = 2..7 and passes the selected one as `ctx.puzzle`
+(`ctx.selectPuzzle(id)` switches it). `makeNxN(N)` returns
 `{ id: '7x7', name, N, active, solvedState(), applyMove(s,m), applyMoves(s,ms), parseAlg(t),
    formatMove(m), formatAlg(ms), describeMove(m), isSolved(s), validate(s), solve(s) -> Promise<Step[]>,
    algs, lessons }`.
@@ -38,7 +39,7 @@ Screens use only this interface (plus the UI modules), so other puzzles can plug
   `netSVG(state, N, { size? })` shows a full cross-shaped net.
 - `src/core/store.js`: `store.get(key, fallback)`, `store.set(key, value)`, `store.remove(key)`
   (JSON in localStorage, every access wrapped in try/catch).
-  Keys: `editor:7x7` (face-editor draft), `solution:7x7`
+  Keys: `puzzle` (selected size id, default `7x7`), `editor:<id>` (face-editor draft), `solution:<id>`
   `{ startState: number[], steps: Step[], progress: { step, move } }`.
 
 ## Screens (`src/ui/screens/*.js`)
@@ -63,5 +64,15 @@ alg's inverse applied. The 3x3 solver refers to these ids:
 `index.js` `solve(N, state) -> Step[]` = reduction (`centers.js`, `edges.js`, `parity.js`, using
 `search.js`) followed by the 3x3 stage (`three.js`: `solve3x3Stage(N, state) -> Step[]`, outer-layer
 moves and whole-cube rotations only). `worker.js` runs it off the main thread.
+Per size: N = 2 runs `solve2x2` (corners only); N = 3 runs only the 3x3 stage; bigger cubes reduce first.
+Even N has no fixed centers: the target frame is face f = color f, which the even-cube hold guide
+(white-green-red corner at top-front-right) matches. Even-N reduction pairs edges around an anchor wing;
+OLL/PLL parity is fixed at the start of the 3x3 stage (`fixEvenParity`, algs in `src/puzzles/nxn/parityText.js`).
+Notation: `2-3R` is a block of inner slices 2..3.
 Steps are human-sized and named, for example "Centers: white (1 of 6)", "Pair edge 4 of 12",
 "3x3: white cross" and "Parity fix".
+
+## Camera mode
+`src/ui/camera.js` (`openCamera`) captures each face with a grid overlay, or a photo per face as a fallback.
+`src/ui/colorClassify.js` (pure, tested in `tests/classify.test.mjs`) samples the grid, converts to Lab and
+assigns colors with exactly N² stickers of each color. Unsure stickers get flagged, and the face editor marks them with "?" so he can check them.

@@ -19,13 +19,26 @@ export function parityAlg(N, depth) {
 }
 
 const edgeCache = new Map();
-// Edge slots: each midge with the wings that share its edge.
+// Edge slots: the 12 edge positions, each with its wings (and on odd cubes
+// its midge: `m` = the midge's two stickers, aligned with `faces`). On even
+// cubes `mid` and `m` are null and `faces` is in U R F D L B order.
+// Each wing position `s` is its two stickers aligned with `faces`.
 export function edgeSlots(N) {
   if (edgeCache.has(N)) return edgeCache.get(N);
   const P = getPieces(N), m = N - 1, nn = N * N;
   const faceOf = (s) => Math.floor(s / nn);
-  const slots = P.midges.map((mid, i) => ({ id: i, pos: mid.pos, mid, faces: mid.stickers.map(faceOf), m: mid.stickers, wings: [] }));
   const keyOf = (pos) => pos.map(v => (Math.abs(v) === m ? v : 0)).join(',');
+  let slots;
+  if (P.midges.length) {
+    slots = P.midges.map((mid, i) => ({ id: i, pos: mid.pos, mid, faces: mid.stickers.map(faceOf), m: mid.stickers, wings: [] }));
+  } else {
+    const seen = new Map();
+    for (const w of P.wings) {
+      const k = keyOf(w.pos);
+      if (!seen.has(k)) seen.set(k, { pos: k.split(',').map(Number), faces: w.stickers.map(faceOf).sort((a, b) => a - b) });
+    }
+    slots = [...seen.values()].map((v, i) => ({ id: i, pos: v.pos, mid: null, faces: v.faces, m: null, wings: [] }));
+  }
   const byKey = new Map(slots.map(s => [keyOf(s.pos), s]));
   // the two sticker orbits of each wing depth: alpha = lower id
   const alphaOrbit = new Map();
@@ -48,6 +61,7 @@ export function edgeSlots(N) {
 }
 
 // For one wing depth, the permutation "position -> where its wing belongs".
+// Odd cubes only (the midges say where each wing belongs).
 // Returns { parity: 0|1, wrong: [wing positions not yet correct] }.
 export function wingOrbitInfo(N, state, depth) {
   const { slots, wingPos } = edgeSlots(N);

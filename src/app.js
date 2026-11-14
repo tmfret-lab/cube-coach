@@ -14,6 +14,7 @@ const viewEl = document.getElementById('view');
 const titleEl = document.getElementById('title');
 const backBtn = document.getElementById('back');
 
+const SIZES = [2, 3, 4, 5, 6, 7];
 let puzzle = null;
 let puzzleError = null;
 let cleanup = null;
@@ -55,17 +56,29 @@ function errorBox(message, detail) {
 async function loadPuzzle() {
   try {
     const { makeNxN } = await import('./puzzles/nxn/index.js');
-    if (!getPuzzle('7x7')) registerPuzzle(makeNxN(7));
-    puzzle = getPuzzle('7x7');
+    for (const n of SIZES) if (!getPuzzle(`${n}x${n}`)) registerPuzzle(makeNxN(n));
+    pickPuzzle();
   } catch (e) {
     puzzleError = e;
     console.error(e);
   }
 }
 
+// The selected puzzle is remembered in the store ('puzzle'), default 7x7.
+function pickPuzzle() {
+  puzzle = getPuzzle(store.get('puzzle', '7x7')) || getPuzzle('7x7');
+}
+
+export function selectPuzzle(id) {
+  if (!getPuzzle(id)) return;
+  store.set('puzzle', id);
+  pickPuzzle();
+}
+
 async function render() {
   const token = ++navToken;
   const { route, params } = parseHash();
+  if (puzzleError === null && puzzle) pickPuzzle();
   const def = SCREENS[route];
   if (cleanup) { try { cleanup(); } catch (e) { console.error(e); } cleanup = null; }
   viewEl.replaceChildren();
@@ -90,7 +103,7 @@ async function render() {
     return;
   }
   if (token !== navToken) return;
-  const ctx = { puzzle, navigate, store, params, setTitle };
+  const ctx = { puzzle, navigate, store, params, setTitle, selectPuzzle };
   try {
     const res = await mod.mount(viewEl, ctx);
     if (token !== navToken) { if (typeof res === 'function') res(); return; }

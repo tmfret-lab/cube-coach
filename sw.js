@@ -1,6 +1,6 @@
 // Service worker: network-first for this site's files (so updates show right
 // away), falling back to the cache when offline. Bump VERSION on each release.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `cube-coach-${VERSION}`;
 
 const PRECACHE = [
@@ -23,6 +23,7 @@ const PRECACHE = [
   'src/puzzles/nxn/validate.js',
   'src/puzzles/nxn/algs.js',
   'src/puzzles/nxn/lessons.js',
+  'src/puzzles/nxn/parityText.js',
   'src/puzzles/nxn/solver/index.js',
   'src/puzzles/nxn/solver/client.js',
   'src/puzzles/nxn/solver/worker.js',
@@ -32,9 +33,12 @@ const PRECACHE = [
   'src/puzzles/nxn/solver/parity.js',
   'src/puzzles/nxn/solver/reduce.js',
   'src/puzzles/nxn/solver/three.js',
+  'src/puzzles/nxn/solver/evenParity.js',
   'src/ui/cube3d.js',
   'src/ui/net2d.js',
   'src/ui/faceEditor.js',
+  'src/ui/camera.js',
+  'src/ui/colorClassify.js',
   'src/ui/screens/home.js',
   'src/ui/screens/learn.js',
   'src/ui/screens/algorithms.js',

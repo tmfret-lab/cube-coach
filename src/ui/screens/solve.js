@@ -2,6 +2,7 @@
 import { createFaceEditor } from '../faceEditor.js';
 import { EMPTY } from '../../puzzles/nxn/validate.js';
 import { FACE_INDEX, COLOR_NAMES, COLOR_HEX } from '../../puzzles/nxn/state.js';
+import { openCamera } from '../camera.js'; // camera mode
 
 const ORDER = ['F', 'R', 'B', 'L', 'U', 'D'];
 // How to hold the cube for each face, matching the sticker layouts in state.js.
@@ -13,6 +14,16 @@ const GUIDE = {
   L: { text: 'Keep white on top. Turn it to the left once more so the <b>orange</b> center faces you.', up: 0, down: 3, left: 5, right: 2 },
   U: { text: 'Turn back to green facing you. Now tip the top toward you so the <b>white</b> center faces you. Green is now at the bottom.', up: 5, down: 2, left: 4, right: 1 },
   D: { text: 'Start again with white on top and green facing you. Tip the bottom up toward you so the <b>yellow</b> center faces you. Green is now at the top.', up: 2, down: 5, left: 4, right: 1 },
+};
+
+// Even cubes have no middle center, so he holds the cube by one corner instead.
+const EVEN_TEXT = {
+  F: 'Find the corner with <b>white</b>, <b>green</b> and <b>red</b>. Hold the cube so that corner is at the top-front-right: white on top, green facing you, red on the right. Enter the side facing you.',
+  R: 'Keep white on top. Turn the whole cube to the left once, so the side that had the red sticker of that corner faces you.',
+  B: 'Keep white on top. Turn the cube to the left again.',
+  L: 'Keep white on top. Turn it to the left once more.',
+  U: 'Turn back to the start (white-green-red corner at the top-front-right). Tip the top toward you, so the white side faces you.',
+  D: 'Start again with the white-green-red corner at the top-front-right. Tip the bottom up toward you, so the bottom side faces you.',
 };
 
 const STYLE_ID = 'solve-screen-style';
@@ -83,7 +94,8 @@ const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 function randomScramble(puzzle) {
   const N = puzzle.N;
-  const maxDepth = Math.max(1, Math.floor((N - 1) / 2)); // never the middle slice, so centers stay put
+  // never the middle slice on odd cubes, so the middle centers stay put
+  const maxDepth = Math.max(1, N % 2 ? Math.floor((N - 1) / 2) : N / 2);
   const moves = [];
   for (let i = 0; i < 200; i++) {
     const face = 'URFDLB'[Math.floor(Math.random() * 6)];
@@ -172,9 +184,14 @@ export function mount(el, ctx) {
     editor.setFace(f);
     editor.setHighlight(errorStickers);
     $('.sv-pic').replaceChildren(guideSVG(f));
-    $('.sv-step').textContent = `Face ${faceI + 1} of 6 · ${cap(COLOR_NAMES[FACE_INDEX[f]])} center`;
     const g = GUIDE[f];
-    $('.sv-text').innerHTML = `${g.text} Check that <b>${COLOR_NAMES[g.up]}</b> is above it and <b>${COLOR_NAMES[g.right]}</b> is on the right.`;
+    if (N % 2) {
+      $('.sv-step').textContent = `Face ${faceI + 1} of 6 · ${cap(COLOR_NAMES[FACE_INDEX[f]])} center`;
+      $('.sv-text').innerHTML = `${g.text} Check that <b>${COLOR_NAMES[g.up]}</b> is above it and <b>${COLOR_NAMES[g.right]}</b> is on the right.`;
+    } else {
+      $('.sv-step').textContent = `Face ${faceI + 1} of 6 · the ${cap(COLOR_NAMES[FACE_INDEX[f]])} side`;
+      $('.sv-text').innerHTML = EVEN_TEXT[f];
+    }
     $('.sv-prev').disabled = faceI === 0;
     $('.sv-next').textContent = faceI === 5 ? 'Back to face 1' : 'Next face →';
     updateTabs();
@@ -252,6 +269,50 @@ export function mount(el, ctx) {
     }
   });
 
+  // ---- camera mode (src/ui/camera.js): read all six faces from photos, then check flagged stickers
+  let closeCamera = () => {};
+  {
+    if (!document.getElementById('solve-camera-style')) {
+      const st = document.createElement('style');
+      st.id = 'solve-camera-style';
+      st.textContent = `.sv-cam { min-height: 56px; border-radius: 14px; border: 0; background: var(--primary); color: var(--primary-text); font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
+.sv-cam-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--primary-soft); font-size: 15px; }`;
+      document.head.appendChild(st);
+    }
+    const camBtn = document.createElement('button');
+    camBtn.type = 'button';
+    camBtn.className = 'sv-cam';
+    camBtn.textContent = '📷 Use camera';
+    const camNote = document.createElement('p');
+    camNote.className = 'sv-cam-note';
+    camNote.hidden = true;
+    root.querySelector('h2').after(camBtn, camNote);
+    const EVEN_UP = { F: 'the top side', R: 'the top side', B: 'the top side', L: 'the top side', U: 'the back side', D: 'the front side' };
+    camBtn.addEventListener('click', () => {
+      const lock = blank();
+      if (state.some((v, i) => v !== EMPTY && v !== lock[i]) &&
+          !confirm('The camera will replace the colors you have entered. Go ahead?')) return;
+      const back = faceI;
+      closeCamera = openCamera({
+        N, order: ORDER,
+        guideHTML: (f) => { go(ORDER.indexOf(f)); return $('.sv-text').innerHTML; },
+        upLabel: (f) => (N % 2 ? `the ${COLOR_NAMES[GUIDE[f].up]} center` : EVEN_UP[f]),
+        onCancel: () => go(back),
+        onDone: ({ state: read, flagged }) => {
+          state.set(read);
+          editor.setState(state);
+          editor.setFlagged(flagged);
+          showErrors([]);
+          go(0);
+          camNote.hidden = false;
+          camNote.textContent = flagged.length
+            ? `The camera read all 6 faces. Look at each face: the ${flagged.length} sticker${flagged.length === 1 ? '' : 's'} marked ? might be wrong. Tap the right color, then tap a sticker to fix it.`
+            : 'The camera read all 6 faces. Check each face against your cube, then tap Finish.';
+        },
+      });
+    });
+  }
+
   go(faceI);
-  return () => { editor.destroy(); };
+  return () => { closeCamera(); editor.destroy(); };
 }

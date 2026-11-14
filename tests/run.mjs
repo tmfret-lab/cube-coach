@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { results } from './harness.mjs';
 
-const all = ['engine', 'algs', 'validate', 'reduction', 'three', 'solver'];
+const all = ['engine', 'algs', 'validate', 'reduction', 'three', 'solver', 'classify'];
 const asked = process.argv.slice(2);
 const files = asked.length ? asked : all.filter(f => existsSync(new URL(`./${f}.test.mjs`, import.meta.url)));
 for (const f of files) {

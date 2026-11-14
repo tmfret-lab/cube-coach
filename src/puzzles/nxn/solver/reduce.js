@@ -1,20 +1,25 @@
 // Reduction: turn a big cube into a "giant 3x3".
 //   reduce(N, state) -> { steps, state }
-// When it's done, every center matches its fixed middle center, every edge is
-// paired, and the cube is held white on top, green in front. Corners and
-// midges can be anywhere (the 3x3 stage handles them).
-// Odd N only (7x7 is the target; 5x5 also works).
+// When it's done, every center is solved and every edge is paired. Corners
+// (and midges on odd cubes) can be anywhere (the 3x3 stage handles them).
+// Odd N: the cube is first turned so the fixed middle centers say white on
+// top, green in front. Even N has no fixed centers: the cube is never turned,
+// face f simply gets color f (white U, red R, green F, yellow D, orange L,
+// blue B), so the user must keep holding the cube the same way.
 import { applyMoves } from '../state.js';
 import { formatAlg } from '../../../core/notation.js';
 import { solveCenters, centersSolved } from './centers.js';
 import { pairEdges, edgesPaired } from './edges.js';
 
 export function fixedCentersHome(N, state) {
+  if (N % 2 === 0) return true; // no fixed centers
   const nn = N * N, mid = (N - 1) / 2;
   for (let f = 0; f < 6; f++) if (state[f * nn + mid * N + mid] !== f) return false;
   return true;
 }
 
+// Works for any N: centers solved in the fixed frame (face f = color f) and
+// every edge paired (each edge shows one color pair on all of its pieces).
 export function isReduced(N, state) {
   return fixedCentersHome(N, state) && centersSolved(N, state) && edgesPaired(N, state);
 }
@@ -36,10 +41,9 @@ function orient(N, state) {
 }
 
 export function reduce(N, state) {
-  if (N % 2 === 0) throw new Error('reduce: only odd cubes for now');
   const steps = [];
   let st = state;
-  const rot = orient(N, st);
+  const rot = N % 2 ? orient(N, st) : [];
   if (rot.length) {
     st = applyMoves(N, st, rot);
     steps.push({

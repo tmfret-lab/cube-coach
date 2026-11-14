@@ -1,11 +1,14 @@
 import { solvedState, applyMoves, permOfMoves, isSolved, FACE_AXIS, getCube } from '../src/puzzles/nxn/state.js';
 import { parseAlg, invertAlg } from '../src/core/notation.js';
 import { getPieces } from '../src/puzzles/nxn/pieces.js';
-import { getAlgs, STAGES } from '../src/puzzles/nxn/algs.js';
+import { getAlgs, getStages } from '../src/puzzles/nxn/algs.js';
 import { getLessons } from '../src/puzzles/nxn/lessons.js';
 import { test, assert, eq } from './harness.mjs';
 
-const N = 7, m = N - 1;
+const SIZES = (process.env.ALG_SIZES || '2,3,4,5,6,7').split(',').map(Number);
+for (const N of SIZES) {
+const m = N - 1;
+const STAGES = getStages(N);
 const S = solvedState(N);
 const P = getPieces(N);
 const cube = getCube(N);
@@ -106,17 +109,17 @@ const REQUIRED = {
   'headlights': "R' F R' B2 R F' R' B2 R2",
 };
 
-test('alg ids are unique', () => eq(new Set(algs.map(a => a.id)).size, algs.length));
-test('required ids exist with the exact algs', () => {
-  for (const [id, alg] of Object.entries(REQUIRED)) eq(algs.find(a => a.id === id)?.alg, alg, id);
-  assert(algs.some(a => a.id === 'oll-parity'), 'oll-parity missing');
+test(`${N}x${N}: alg ids are unique`, () => eq(new Set(algs.map(a => a.id)).size, algs.length));
+test(`${N}x${N}: required ids exist with the exact algs`, () => {
+  for (const [id, alg] of Object.entries(REQUIRED)) { const a = algs.find(x => x.id === id); if (a || N >= 4 || !['f2l-right','f2l-left','ll-cross','u-perm','edge-flip'].includes(id)) { if (N < 4 && id === 'edge-flip') continue; eq(a?.alg, alg, id); } }
+  if (N >= 4) assert(algs.some(a => a.id === 'oll-parity' || a.id === 'oll-parity-even'), 'oll-parity missing');
 });
-test('every alg has a known stage', () => {
+test(`${N}x${N}: every alg has a known stage`, () => {
   for (const a of algs) assert(STAGES.some(s => s.id === a.stage), `${a.id}: stage ${a.stage}`);
 });
 
 for (const a of algs) {
-  test(`alg ${a.id}: parses, inverse undoes it, effect holds`, () => {
+  test(`${N}x${N} alg ${a.id}: parses, inverse undoes it, effect holds`, () => {
     const moves = parseAlg(a.alg, N);
     assert(moves.length > 0, 'empty');
     assert(isSolved(N, applyMoves(N, applyMoves(N, S, moves), invertAlg(moves))), 'inverse does not undo');
@@ -130,9 +133,9 @@ for (const a of algs) {
   });
 }
 
-test('lessons: ids unique and every demo parses', () => {
+test(`${N}x${N} lessons: ids unique and every demo parses`, () => {
   const lessons = getLessons(N);
-  assert(lessons.length >= 6, 'too few lessons');
+  assert(lessons.length >= (N >= 4 ? 6 : 3), 'too few lessons');
   eq(new Set(lessons.map(l => l.id)).size, lessons.length);
   for (const l of lessons) {
     assert(l.title && l.sections.length, l.id);
@@ -145,3 +148,4 @@ test('lessons: ids unique and every demo parses', () => {
     }
   }
 });
+}

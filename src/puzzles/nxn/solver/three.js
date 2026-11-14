@@ -5,6 +5,7 @@
 import { solvedState, applyMoves, FACES, FACE_INDEX, COLOR_NAMES, movePerm } from '../state.js';
 import { parseAlg, simplify } from '../../../core/notation.js';
 import { getPieces } from '../pieces.js';
+import { parity3, evenParityAlgs, PARITY_TEXT } from './evenParity.js';
 
 const N3 = 3;
 const ALG = {
@@ -51,7 +52,7 @@ for (const face of FACES) for (const amt of [1, 2, 3]) {
 
 // ---------- step builder
 class Builder {
-  constructor(s) { this.s = s; this.steps = []; this.cur = null; }
+  constructor(s, N = 3) { this.s = s; this.N = N; this.steps = []; this.cur = null; }
   begin(title, explanation, algId) { this.cur = { stage: '3x3', title, explanation, moves: [] }; if (algId) this.cur.algId = algId; }
   apply(moves) {
     if (typeof moves === 'string') moves = P(moves);
@@ -81,8 +82,10 @@ function flip(b) {
   const where = FACES.find(f => center(b.s, f) === white);
   const rot = { U: 'z2', D: '', F: "x'", B: 'x', R: 'z', L: "z'" }[where];
   if (!rot) return;
-  b.begin('3x3: flip the cube',
-    where === 'U'
+  b.begin(b.N === 2 ? 'Flip the cube' : '3x3: flip the cube',
+    b.N === 2
+      ? 'We solve the white side first, on the bottom. Turn the whole cube upside down like a steering wheel (z2), so white goes to the bottom and yellow comes to the top. Keep the same side facing you.'
+      : where === 'U'
       ? 'The 3x3 part starts with white on the bottom. Turn the whole cube upside down like a steering wheel (z2), so white goes to the bottom and yellow comes to the top. Keep the same color facing you.'
       : 'Turn the whole cube so the white center is on the bottom and yellow is on top.');
   b.apply(rot);
@@ -193,7 +196,8 @@ function whiteCorners(b) {
     tryTurns(b, 'y', t => sameSet([center(t, 'F'), center(t, 'R')], others));
     tryTurns(b, 'U', t => sameSet(colorsOf(t, at('UFR')), target));
     const front = name(center(b.s, 'F')), right = name(center(b.s, 'R'));
-    text += `Hold the cube with ${front} facing you (yellow on top). The white-${front}-${right} corner goes in the bottom-front-right spot. Turn the top so the corner sits right above that spot. Then repeat R U R' U' until the corner is in with white on the bottom.`;
+    if (b.N === 2) text += `A 2x2 has no centers, so the white corners on the bottom show which color goes on each side${n === 1 ? ' (the first corner decides them)' : ''}. `;
+    text += `Hold the cube with the ${front} side facing you (yellow on top). The white-${front}-${right} corner goes in the bottom-front-right spot. Turn the top so the corner sits right above that spot. Then repeat R U R' U' until the corner is in with white on the bottom.`;
     let reps = 0;
     while (!solvedPiece(b.s, at('DFR'))) {
       b.apply(ALG['corner-insert']);
@@ -362,19 +366,55 @@ function yellowEdges(b) {
 }
 
 // ---------- projection / lifting
-function project(N, state) {
+// 3x3 coordinate 0/1/2 -> NxN row/col 0 / floor(N/2) / N-1.
+// Odd N: corners, midges, fixed centers. Even N (reduced): corners, one wing
+// sticker per edge side (all wings on a side match once edges are paired) and
+// one center sticker per face (all match once centers are solved).
+// N = 2: corners only; edges and centers are filled with the frame colors
+// (face f = color f), so the cube is solved white U, green F, red R.
+export function project(N, state) {
   if (N === 3) return Uint8Array.from(state);
-  if (N % 2 === 0) throw new Error('3x3 stage needs an odd cube');
-  const h = (N - 1) / 2, nn = N * N;
+  const nn = N * N, map = [0, Math.floor(N / 2), N - 1];
   const s = new Uint8Array(54);
   for (let f = 0; f < 6; f++) for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++)
-    s[f * 9 + r * 3 + c] = state[f * nn + r * h * N + c * h];
+    s[f * 9 + r * 3 + c] = N === 2 && (r === 1 || c === 1) ? f : state[f * nn + map[r] * N + map[c]];
   return s;
 }
 function lift(N, m) { return { face: m.face, lo: m.lo, hi: m.hi === 3 ? N : m.hi, amt: m.amt }; }
+const liftSteps = (N, steps) => steps.map(st => ({ ...st, moves: st.moves.map(m => lift(N, m)) }));
+
+// Even cubes: fix OLL / PLL parity on the reduced cube before the 3x3 part.
+export function fixEvenParity(N, state) {
+  const steps = [];
+  let st = state;
+  const algs = evenParityAlgs(N);
+  const add = (kind) => {
+    st = applyMoves(N, st, algs[kind]);
+    const step = { stage: 'parity', ...PARITY_TEXT[kind](N), moves: algs[kind].map(m => ({ ...m })) };
+    step.algId = kind === 'oll' ? 'oll-parity-even' : 'pll-parity'; // text: evenParityAlgText(N)
+    steps.push(step);
+  };
+  if (parity3(project(N, st)).flip) add('oll');
+  const p = parity3(project(N, st));
+  if (p.edgePerm !== p.cornerPerm) add('pll');
+  return { steps, state: st };
+}
+
+// 2x2: corners only (white corners, yellow face, yellow corners).
+export function solve2x2(state) {
+  const b = new Builder(project(2, state), 2);
+  flip(b);
+  whiteCorners(b);
+  yellowFace(b);
+  yellowCorners(b);
+  return liftSteps(2, b.steps);
+}
 
 export function solve3x3Stage(N, state) {
-  const b = new Builder(project(N, state));
+  if (N === 2) return solve2x2(state);
+  let pre = [];
+  if (N % 2 === 0) ({ steps: pre, state } = fixEvenParity(N, state));
+  const b = new Builder(project(N, state), N);
   flip(b);
   whiteCross(b);
   whiteCorners(b);
@@ -383,7 +423,7 @@ export function solve3x3Stage(N, state) {
   yellowFace(b);
   yellowCorners(b);
   yellowEdges(b);
-  return b.steps.map(st => ({ ...st, moves: st.moves.map(m => lift(N, m)) }));
+  return [...pre, ...liftSteps(N, b.steps)];
 }
 
 export const THREE_STAGE_ALGS = ALG;

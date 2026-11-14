@@ -10,7 +10,7 @@
 import { getPieces } from '../pieces.js';
 import { COLOR_NAMES, FACES } from '../state.js';
 import { simplify, invertMove } from '../../../core/notation.js';
-import { sliceMoves, makeCandidate, threeCycles, pickBest, applySparse, conjugate, setups, cycleIndex, setupsUpTo2, findConjugated } from './search.js';
+import { innerLayers, sliceMoves, makeCandidate, threeCycles, pickBest, applySparse, conjugate, setups, cycleIndex, setupsUpTo2, findConjugated } from './search.js';
 
 const ORDER = [[0], [3], [2], [1], [5, 4]]; // U, D, F, R, then B + L
 const MAX_PART = 32; // split long steps into parts a kid can follow
@@ -21,8 +21,7 @@ function pool(N) {
   const P = getPieces(N);
   const isCenter = new Uint8Array(6 * N * N);
   for (const c of P.centers) for (const s of c.stickers) isCenter[s] = 1;
-  const inner = [];
-  for (let k = 2; k <= Math.floor((N - 1) / 2); k++) inner.push(k); // never the middle slice
+  const inner = innerLayers(N);
   const outerAndInner = sliceMoves([1, ...inner]);
   const cands = [];
   for (const m of outerAndInner) cands.push(makeCandidate(N, [m], 'turn'));
@@ -31,7 +30,7 @@ function pool(N) {
     cands.push(makeCandidate(N, [S, X, invertMove(S)], 'insert'));
   }
   const layers = [];
-  for (let k = 1; k <= Math.ceil(N / 2); k++) layers.push(k);
+  for (let k = 1; k <= Math.ceil(N / 2); k++) layers.push(k); // odd: incl. the middle slice
   const comms = threeCycles(N, 'center', layers, c => c.type === 'center');
   cands.push(...comms);
   // keep only the center part of each effect for fast scoring
@@ -133,7 +132,7 @@ export function solveCenters(N, state) {
       steps.push({
         stage: 'centers',
         title: gi < 4 ? `Centers: ${label} (${gi + 1} of 6)${partTxt}` : `Centers: last two, ${label} (5 and 6 of 6)${partTxt}`,
-        explanation: centerExplanation(gi, label, faceWords, pi, parts.length),
+        explanation: centerExplanation(N, gi, label, faceWords, pi, parts.length),
         moves,
       });
     });
@@ -141,11 +140,15 @@ export function solveCenters(N, state) {
   return { steps, state: st };
 }
 
-function centerExplanation(gi, label, faceWords, pi, n) {
+function centerExplanation(N, gi, label, faceWords, pi, n) {
   const where = faceWords.join(' and ');
   if (gi === 0) {
+    const count = (N - 2) * (N - 2);
+    const intro = N % 2
+      ? `It is ${count} pieces with the white middle already in place.`
+      : `It is ${count} pieces. A ${N}x${N} has no fixed middle piece, so keep holding the cube the same way the whole time.`;
     return pi === 0
-      ? `Build the white center on the ${where}. It is 25 pieces with the white middle already in place. Slice moves bring white pieces up from the sides. Anything that isn't solved yet can get mixed up, that's fine.`
+      ? `Build the white center on the ${where}. ${intro} Slice moves bring white pieces up from the sides. Anything that isn't solved yet can get mixed up, that's fine.`
       : `Keep filling in the white center on the ${where}. Toward the end, a "swap trick" (a commutator) moves just 3 center pieces and puts everything else back.`;
   }
   if (gi === 1) {
@@ -162,8 +165,7 @@ function targetedCenter(N, st, want, weight, targets) {
   const p = pool(N);
   if (!p.index) {
     p.index = cycleIndex(p.comms, p.isCenter);
-    const inner = [];
-    for (let k = 2; k <= Math.floor((N - 1) / 2); k++) inner.push(k);
+    const inner = innerLayers(N);
     p.setups2 = setupsUpTo2(N, sliceMoves([1, ...inner]));
   }
   const free = (j) => weight[j] < 1000 && !(weight[j] === 1 && st[j] === want[j]);

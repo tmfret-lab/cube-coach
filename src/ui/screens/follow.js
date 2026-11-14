@@ -3,27 +3,30 @@
 import { invertAlg } from '../../core/notation.js';
 import { createCubeView } from '../cube3d.js';
 
-const KEY = 'solution:7x7';
 const STAGE_LABEL = { centers: 'Centers', edges: 'Edges', parity: 'Parity', '3x3': '3x3 stage', demo: 'Demo' };
 
 function demoSolution(puzzle) {
-  const scramble = puzzle.parseAlg("R U R' U' 3Rw2 2F' x y'");
+  const N = puzzle.N;
+  const big = N >= 4;
+  const wide = N >= 6 ? '3Rw2' : '2Rw2';
+  const scramble = puzzle.parseAlg(big ? `R U R' U' ${wide} 2F' x y'` : "R U R' U' F2 x y'");
   const start = puzzle.applyMoves(puzzle.solvedState(), scramble);
-  const undo = invertAlg(scramble); // y x' 2F 3Rw2 U R U' R'
-  return {
-    demo: true,
-    startState: Array.from(start),
-    steps: [
-      { stage: 'demo', title: 'Demo: turn the whole cube', explanation: 'Whole-cube turns (x, y, z) don\'t change the puzzle. They just change how you hold it, so the next moves are easy to do.', moves: undo.slice(0, 2) },
-      { stage: 'demo', title: 'Demo: inner layers', explanation: 'On a 7x7 you can turn inner slices. "2F" turns only the 2nd layer from the front. "3Rw" grabs the 3 right layers together.', moves: undo.slice(2, 4) },
-      { stage: 'demo', title: 'Demo: a move you know', explanation: 'This is the "sexy move" backwards. It works just like on a 3x3!', moves: undo.slice(4) },
-    ],
-    progress: { step: 0, move: 0 },
-  };
+  const undo = invertAlg(scramble); // y x' (2F 3Rw2 | F2) U R U' R'
+  const steps = [
+    { stage: 'demo', title: 'Demo: turn the whole cube', explanation: 'Whole-cube turns (x, y, z) don\'t change the puzzle. They just change how you hold it, so the next moves are easy to do.', moves: undo.slice(0, 2) },
+  ];
+  if (big) {
+    steps.push({ stage: 'demo', title: 'Demo: inner layers', explanation: `On a ${N}x${N} you can turn inner slices. "2F" turns only the 2nd layer from the front. "${wide.slice(0, -1)}" grabs the ${wide[0]} right layers together.`, moves: undo.slice(2, 4) });
+    steps.push({ stage: 'demo', title: 'Demo: a move you know', explanation: 'This is the "sexy move" backwards. It works just like on a 3x3!', moves: undo.slice(4) });
+  } else {
+    steps.push({ stage: 'demo', title: 'Demo: a move you know', explanation: 'F2 turns the front face twice. Then comes the "sexy move" backwards.', moves: undo.slice(2) });
+  }
+  return { demo: true, startState: Array.from(start), steps, progress: { step: 0, move: 0 } };
 }
 
 export function mount(el, ctx) {
   const { puzzle, store, navigate, params } = ctx;
+  const KEY = `solution:${puzzle.id}`;
   const forceDemo = params.id === 'demo';
   let sol = forceDemo ? null : store.get(KEY);
   if (!sol || !Array.isArray(sol.steps) || !sol.startState) sol = demoSolution(puzzle);
@@ -63,13 +66,13 @@ export function mount(el, ctx) {
         <div class="progress" role="progressbar" aria-label="Solve progress"><div class="bar"></div></div>
         <details class="why"><summary>Why this step?</summary><p></p></details>
       </div>
-      <div class="cube-stage"><div class="cube-box"></div><button class="icon-btn reset-view" aria-label="Reset view">⟲</button></div>
       <div class="move-card">
         <div class="move-big" aria-live="polite"></div>
         <p class="move-desc"></p>
       </div>
-      <div class="move-list" aria-label="Moves in this step"></div>
+      <div class="cube-stage"><div class="cube-box"></div><button class="icon-btn reset-view" aria-label="Reset view">⟲</button></div>
       <div class="controls">
+        <div class="move-list" aria-label="Moves in this step"></div>
         <button class="btn primary huge did-it">I did it ✓</button>
         <div class="row gap">
           <button class="btn back-btn">← Back</button>
@@ -115,7 +118,8 @@ export function mount(el, ctx) {
       return chip;
     }));
     const cur = list.querySelector('.current');
-    if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    // scroll the chip row sideways only; scrollIntoView would also move the page
+    if (cur) list.scrollLeft = cur.offsetLeft - list.offsetLeft - (list.clientWidth - cur.offsetWidth) / 2;
 
     $('.back-btn').disabled = step === 0 && move === 0;
     const m = st.moves[move];
@@ -202,6 +206,8 @@ export function mount(el, ctx) {
   };
 
   render();
+  // show the move, the whole cube and the sticky buttons together on phones
+  requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight));
 
   let cleaned = false;
   function cleanupAll() {
@@ -217,7 +223,7 @@ export function mount(el, ctx) {
       <div class="celebrate">
         <div class="confetti" aria-hidden="true">🎉🧊🎉</div>
         <h1>You solved it!</h1>
-        <p class="muted">${sol.demo ? 'That was the demo. Now try it with your real cube!' : 'Amazing work. A 7x7 is a big deal!'}</p>
+        <p class="muted">${sol.demo ? 'That was the demo. Now try it with your real cube!' : `Amazing work. You solved the ${puzzle.N}x${puzzle.N}!`}</p>
         <div class="menu">
           ${sol.demo ? '<button class="btn primary big" data-go="solve">🧩 Solve my cube</button>' : '<button class="btn primary big" data-go="solve">🧩 Solve another one</button>'}
           <button class="btn big" data-go="home">🏠 Home</button>

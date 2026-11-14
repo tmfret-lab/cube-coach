@@ -2,7 +2,9 @@
 // createFaceEditor(container, { N, state, face, onChange, color })
 //   state: Uint8Array (EMPTY = 255 for unpainted); edited in place.
 // Returns { setFace(face), getFace(), getState(), setState(s), setHighlight(idx[]|null),
-//           setColor(c), getColor(), undo(), canUndo(), fillFace(), clearFace(), destroy() }
+//           setColor(c), getColor(), undo(), canUndo(), fillFace(), clearFace(), destroy(),
+//           setFlagged(idx[]|null), getFlagged() }
+//   flagged = "please check" marks (camera mode); painting a sticker clears its mark.
 import { FACE_INDEX, COLOR_NAMES, COLOR_HEX } from '../puzzles/nxn/state.js';
 import { EMPTY } from '../puzzles/nxn/validate.js';
 
@@ -16,6 +18,9 @@ const CSS = `
 .fe-cell.locked::after { content: ''; position: absolute; inset: 32%; border-radius: 50%; background: rgba(0,0,0,.35); }
 .fe-cell.hl { outline: 3px solid #ff2fd0; outline-offset: -3px; animation: fe-pulse 1s ease-in-out infinite alternate; }
 @keyframes fe-pulse { from { filter: brightness(1); } to { filter: brightness(.6); } }
+.fe-cell.flag { box-shadow: inset 0 0 0 3px #111, inset 0 0 0 5px #fff; }
+.fe-cell.flag::before { content: '?'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1.4em; height: 1.4em; line-height: 1.4em;
+  border-radius: 50%; background: rgba(255,255,255,.9); color: #111; font-weight: 800; font-size: clamp(11px, 3.4vw, 18px); text-align: center; pointer-events: none; }
 .fe-palette { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .fe-color { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 10px; border-radius: 10px;
   border: 2px solid rgba(128,128,128,.35); background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
@@ -44,6 +49,7 @@ export function createFaceEditor(container, { N, state, face = 'F', onChange = (
   let cur = face;
   let active = color;
   let highlight = new Set();
+  let flagged = new Set(); // camera mode: stickers to double-check
   const history = []; // [{ changes: [[idx, oldValue]] }]
   const lockedIdx = (f) => (N % 2 ? FACE_INDEX[f] * nn + ((N - 1) / 2) * N + (N - 1) / 2 : -1);
 
@@ -105,6 +111,7 @@ export function createFaceEditor(container, { N, state, face = 'F', onChange = (
       cell.style.background = v === EMPTY ? '' : COLOR_HEX[v];
       cell.classList.toggle('locked', g === lock);
       cell.classList.toggle('hl', highlight.has(g));
+      cell.classList.toggle('flag', flagged.has(g));
       const r = Math.floor(i / N) + 1, c = (i % N) + 1;
       cell.setAttribute('aria-label', `row ${r}, column ${c}: ${v === EMPTY ? 'empty' : COLOR_NAMES[v]}`);
     }
@@ -130,6 +137,7 @@ export function createFaceEditor(container, { N, state, face = 'F', onChange = (
     stroke.changes.push([g, state[g]]);
     state[g] = active;
     highlight.delete(g);
+    flagged.delete(g);
     render();
   }
   function endStroke() {
@@ -189,6 +197,7 @@ export function createFaceEditor(container, { N, state, face = 'F', onChange = (
     setState(s) {
       state = s;
       history.length = 0;
+      flagged = new Set(); // new cube: old "please check" marks no longer apply
       render();
     },
     setHighlight(list) { highlight = new Set(list || []); render(); },
@@ -205,6 +214,8 @@ export function createFaceEditor(container, { N, state, face = 'F', onChange = (
     fillFace() { applyBatch(faceIndices(), active); },
     clearFace() { applyBatch(faceIndices(), EMPTY); },
     destroy() { root.remove(); },
+    setFlagged(list) { flagged = new Set(list || []); render(); },
+    getFlagged: () => [...flagged],
   };
   render();
   return api;

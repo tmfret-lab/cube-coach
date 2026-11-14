@@ -1,6 +1,6 @@
 // Algorithms screen: alg cards grouped by stage, each with a case diagram
 // and Play / Step buttons that open the 3D player sheet.
-import { STAGES } from '../../puzzles/nxn/algs.js';
+import { getStages } from '../../puzzles/nxn/algs.js';
 import { invertAlg } from '../../core/notation.js';
 import { caseSVG, netSVG, changedStickers } from '../net2d.js';
 import { h, ensureTeachStyles, openPlayer } from './learn.js';
@@ -22,9 +22,10 @@ export function mount(el, ctx) {
   ensureTeachStyles();
   const { puzzle } = ctx;
   const algs = puzzle.algs;
+  const STAGES = getStages(puzzle.N);
   let player = null;
   const want = ctx.params?.stage;
-  let stage = STAGES.some(s => s.id === want) ? want : '3x3';
+  let stage = STAGES.some(s => s.id === want) ? want : (STAGES.some(s => s.id === '3x3') ? '3x3' : STAGES[0].id);
 
   const tabs = h('div', { class: 'stage-tabs', role: 'tablist' });
   const blurb = h('p', { class: 'muted' });
@@ -54,7 +55,8 @@ export function mount(el, ctx) {
     return h('article', { class: 'card alg-card' },
       h('h3', {}, a.name),
       h('div', { class: 'case', 'aria-hidden': 'true' }, pic),
-      h('div', { class: 'alg-text' }, a.alg),
+      // one span per move, so "2-3L'" never breaks at its hyphen
+      h('div', { class: 'alg-text' }, a.alg.split(' ').flatMap((t, i) => [i ? ' ' : null, h('span', { style: 'white-space:nowrap' }, t)])),
       h('p', { class: 'muted' }, a.description),
       h('div', { class: 'row gap' },
         h('button', { class: 'btn primary', onclick: () => open(a, true) }, '▶ Play'),

@@ -1,4 +1,4 @@
-// Algorithm library for the NxN (written for the 7x7).
+// Algorithm library for NxN cubes. getAlgs(N) picks the algs that fit a size.
 // Each alg has a machine-checked `effect` (a list of claims) that
 // tests/algs.test.mjs verifies on the engine:
 //   { kind: 'order', n }                 alg repeated n times = identity
@@ -14,6 +14,8 @@
 //   { kind: 'oll-parity', depth }        swaps exactly the two wings of that depth in UF
 //   { kind: 'case', is: 'pll'|'ocll'|'oll-edges' }  property of the case it solves
 // `view` says how to hold the cube for the diagram: 'yellow-top' = z2 from home.
+
+import { evenParityText } from './parityText.js';
 
 export const STAGES = [
   { id: 'notation', name: 'Moves', blurb: 'The new big-cube moves. Watch each one in 3D.' },
@@ -42,6 +44,9 @@ const ALGS = [
   { id: 'move-3r', stage: 'notation', name: '3R (only the 3rd layer)', alg: '3R',
     description: 'No "w" means a single inner slice. Only the 3rd layer from the right turns. The outer two stay still.',
     effect: [{ kind: 'order', n: 4 }, { kind: 'keeps-layers', faces: ['R', 'L'] }] },
+  { id: 'move-2r', stage: 'notation', name: '2R (only the 2nd layer)', alg: '2R',
+    description: 'No "w" means a single inner slice. Only the 2nd layer from the right turns. The outer layer stays still.',
+    effect: [{ kind: 'order', n: 4 }, { kind: 'keeps-layers', faces: ['R', 'L'] }] },
   { id: 'move-x', stage: 'notation', name: 'x, y, z (turn the whole cube)', alg: "x y z'",
     description: 'x turns the whole cube like R. y turns it like U. z turns it like F.',
     effect: [{ kind: 'order', n: 4 }] },
@@ -57,6 +62,7 @@ const ALGS = [
     description: 'Mix slice 2 and slice 3 to reach the in-between (oblique) center pieces.',
     effect: [{ kind: 'center-3cycle' }] },
   { id: 'bar-insert', stage: 'centers', name: 'Bar insert (slice 3)', alg: "3R U2 3R'",
+    text: (N) => `Build a 1x${N - 2} bar on the front in the 3rd column from the right. Slice it up, turn the top twice, slice back down. The bottom center stays safe.`,
     description: 'Build a 1x5 bar on the front in the 3rd column from the right. Slice it up, turn the top twice, slice back down. The bottom center stays safe.',
     effect: [{ kind: 'keeps-face-centers', faces: ['D'] }, { kind: 'order', n: 2 }] },
   { id: 'bar-insert-2', stage: 'centers', name: 'Bar insert (slice 2)', alg: "2R U2 2R'",
@@ -80,12 +86,23 @@ const ALGS = [
   // ---- parity
   { id: 'oll-parity', stage: 'parity', view: 'yellow-top', name: 'OLL parity (outer wings)',
     alg: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2",
+    text: (N) => N === 5 ? 'Fixes a front-top edge where the two side pieces are swapped (it looks flipped). Long, but it only moves those two pieces.' : 'Fixes a front-top edge where the two outer wing pieces (next to the corners) are swapped. Long, but it only moves those two pieces.',
     description: 'Fixes a front-top edge where the two outer wing pieces (next to the corners) are swapped. Long, but it only moves those two pieces.',
     effect: [{ kind: 'oll-parity', depth: 1 }] },
   { id: 'oll-parity-3', stage: 'parity', view: 'yellow-top', name: 'OLL parity (inner wings)',
     alg: "3R2 B2 U2 3L U2 3R' U2 3R U2 F2 3R F2 3L' B2 3R2",
     description: 'Same alg with slice 3 instead of slice 2. Use it when the two wings next to the middle piece are swapped.',
     effect: [{ kind: 'oll-parity', depth: 2 }] },
+
+  // even cubes (4x4, 6x6): alg text comes from parityText.js
+  { id: 'oll-parity-even', stage: 'parity', view: 'yellow-top', name: 'OLL parity (flipped edge)',
+    alg: (N) => evenParityText(N).oll,
+    text: (N) => `One edge looks flipped. Put it at the front of the top and do this. ${N >= 6 ? '"2-3R" means the 2nd and 3rd layers from the right, together.' : 'It uses the inner slice 2R.'}`,
+    effect: [ONLY_U, { kind: 'only-types', types: ['wing'] }] },
+  { id: 'pll-parity', stage: 'parity', view: 'yellow-top', name: 'PLL parity (swapped edges)',
+    alg: (N) => evenParityText(N).pll,
+    text: () => 'Two edges look swapped: the one at the front and the one at the back of the top. This swaps them back.',
+    effect: [ONLY_U, { kind: 'only-types', types: ['wing'] }] },
 
   // ---- 3x3 stage (beginner)
   { id: 'corner-insert', stage: '3x3', view: 'yellow-top', name: 'Corner trick', alg: "R U R' U'",
@@ -159,17 +176,53 @@ const ALGS = [
     description: 'Three edges cycle the other way. Solved edge at the back.',
     effect: [ONLY_U, { kind: 'case', is: 'pll' }] },
   { id: 'pll-h', stage: 'levelup', view: 'yellow-top', name: 'PLL edges: H perm', alg: "R2 U2 R U2 R2 U2 R2 U2 R U2 R2",
-    description: 'Opposite edges swap both ways. Written without middle slices so it works on the 7x7.',
+    description: 'Opposite edges swap both ways. Written without middle slices so it works on big cubes too.',
     effect: [ONLY_U, { kind: 'case', is: 'pll' }] },
   { id: 'pll-z', stage: 'levelup', view: 'yellow-top', name: 'PLL edges: Z perm', alg: "R U R' U R' U' R' U R U' R' U' R2 U R",
     description: 'Neighbor edges swap in pairs.',
     effect: [ONLY_U, { kind: 'case', is: 'pll' }] },
 ];
 
+// Which algs apply to which cube size. Missing = every size.
+const BIG = (N) => N >= 4;
+const SIX = (N) => N >= 6;
+const AT_LEAST_3 = (N) => N >= 3;
+const WHEN = {
+  'move-rw': BIG, 'move-2r': (N) => N === 4 || N === 5, 'move-3rw': SIX, 'move-3r': SIX,
+  'center-comm': BIG, 'center-comm-3': SIX, 'center-comm-mix': SIX,
+  'bar-insert': SIX, 'bar-insert-2': BIG, 'bar-insert-1': SIX,
+  'edge-flip': BIG, 'edge-pair': BIG, 'edge-pair-3': SIX,
+  'oll-parity': (N) => N >= 5 && N % 2 === 1, 'oll-parity-3': (N) => N >= 7 && N % 2 === 1,
+  'oll-parity-even': (N) => N >= 4 && N % 2 === 0, 'pll-parity': (N) => N >= 4 && N % 2 === 0,
+  'f2l-right': AT_LEAST_3, 'f2l-left': AT_LEAST_3, 'll-cross': AT_LEAST_3, 'u-perm': AT_LEAST_3,
+  'oll-line': AT_LEAST_3, 'oll-l': AT_LEAST_3, 'oll-dot': AT_LEAST_3,
+  'pll-ua': AT_LEAST_3, 'pll-ub': AT_LEAST_3, 'pll-h': AT_LEAST_3, 'pll-z': AT_LEAST_3,
+};
+
+export function getStages(N) {
+  const inner = N - 2;
+  const edge = N % 2 ? `Match up the ${N - 2} pieces of every edge.` : `Match up the ${N - 2} side pieces of every edge.`;
+  const over = {
+    centers: `Tricks for building the ${inner}x${inner} centers.`,
+    edges: edge,
+    parity: N % 2 ? 'The fix for a single flipped edge pair.' : 'Fixes for a flipped edge (OLL parity) and two swapped edges (PLL parity).',
+    '3x3': N === 2 ? 'The 2x2 is just corners. These algorithms solve it.' : N === 3 ? 'The beginner layer-by-layer algorithms.' : 'The beginner algorithms you already know.',
+  };
+  const names = { '3x3': N === 2 ? 'Corners' : N === 3 ? 'Layer by layer' : '3x3 stage' };
+  const algs = getAlgs(N);
+  return STAGES
+    .filter(s => algs.some(a => a.stage === s.id))
+    .map(s => ({ ...s, name: names[s.id] || s.name, blurb: over[s.id] || s.blurb }));
+}
+
 export function getAlgs(N) {
-  // The library is written for odd cubes of size 7; slice numbers are kept
-  // only if they fit the cube.
-  return ALGS.map(a => ({ ...a }));
+  return ALGS.filter(a => !WHEN[a.id] || WHEN[a.id](N)).map(a => {
+    const out = { ...a };
+    if (typeof a.text === 'function') out.description = a.text(N);
+    if (typeof a.alg === 'function') out.alg = a.alg(N);
+    delete out.text;
+    return out;
+  });
 }
 
 export function getAlg(id) {

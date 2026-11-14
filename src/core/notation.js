@@ -5,16 +5,22 @@
 //   3R           only the 3rd layer from the right (an inner slice)
 //   x y z        whole cube (like R, U, F)
 //   M E S        middle slice (odd cubes), turning like L, D, F
+//   2-3R         a block of inner slices, layers 2 to 3 from the right
+//                (the older "2-3Rw" spelling is also accepted)
 
-const MOVE_RE = /^(\d*)([URFDLBurfdlbxyzMES])(w?)(2'|'2|2|'|)$/;
+const MOVE_RE = /^(?:(\d+)-)?(\d*)([URFDLBurfdlbxyzMES])(w?)(2'|'2|2|'|)$/;
 
 export function parseMove(token, N) {
   const m = MOVE_RE.exec(token.trim());
   if (!m) throw new Error(`Bad move "${token}"`);
-  const [, num, letter, w, suffix] = m;
+  const [, from, num, letter, w, suffix] = m;
   const amt = suffix === '' ? 1 : suffix === "'" ? 3 : 2;
   let face, lo, hi;
-  if ('xyz'.includes(letter)) {
+  if (from !== undefined) {
+    if (!num || !'URFDLB'.includes(letter)) throw new Error(`Bad move "${token}"`);
+    face = letter; lo = +from; hi = +num;
+    if (lo > hi) throw new Error(`Bad move "${token}"`);
+  } else if ('xyz'.includes(letter)) {
     face = { x: 'R', y: 'U', z: 'F' }[letter]; lo = 1; hi = N;
   } else if ('MES'.includes(letter)) {
     if (N % 2 === 0) throw new Error(`${letter} needs an odd cube`);
@@ -69,7 +75,7 @@ export function formatMove(mv, N) {
   if (mv.lo === 1 && mv.hi === 2) return mv.face + 'w' + s;
   if (mv.lo === 1) return mv.hi + mv.face + 'w' + s;
   if (mv.lo === mv.hi) return mv.lo + mv.face + s;
-  return `${mv.lo}-${mv.hi}${mv.face}w${s}`;
+  return `${mv.lo}-${mv.hi}${mv.face}${s}`;
 }
 
 export function formatAlg(moves, N) {

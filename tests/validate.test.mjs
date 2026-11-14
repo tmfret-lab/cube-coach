@@ -179,3 +179,23 @@ test('messages name a face and row/column', () => {
   const r = validate(N, swap(S, a, b));
   assert(r.errors.some(e => /face, row \d+, column \d+/.test(e.message)));
 });
+
+// Every size: real scrambles pass, a missing color is caught.
+for (const N2 of [2, 3, 4, 5, 6]) {
+  test(`${N2}x${N2}: real scrambles validate, a wrong sticker is caught`, () => {
+    let sd = 99 + N2;
+    const rnd = (n) => { sd = (sd * 1103515245 + 12345) & 0x7fffffff; return sd % n; };
+    for (let t = 0; t < 30; t++) {
+      const mv = [];
+      for (let i = 0; i < 80; i++) {
+        const k = 1 + rnd(Math.max(1, Math.floor(N2 / 2)));
+        mv.push({ face: 'URFDLB'[rnd(6)], lo: rnd(4) ? k : 1, hi: k, amt: 1 + rnd(3) });
+      }
+      const s = applyMoves(N2, solvedState(N2), mv);
+      assert(validate(N2, s).ok, `scramble ${t} should be valid`);
+      const b = Uint8Array.from(s);
+      b[0] = (b[0] + 1) % 6;
+      assert(!validate(N2, b).ok, `recolored sticker ${t} should be caught`);
+    }
+  });
+}
