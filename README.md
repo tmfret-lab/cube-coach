@@ -7,7 +7,7 @@ A phone web app for the 2x2 through 7x7 cubes. It teaches how to solve each one 
 - **Solve my cube**: tap in your cube's 6 faces, or take a photo of each face with the camera. The app checks them for mistakes and works out a step-by-step solution.
 - **Follow along**: see one move at a time on an animated 3D cube, tap "I did it ✓", and the app remembers where you left off.
 
-It works offline. You can add it to your home screen from the browser's share menu.
+It works offline: everything, including the solver and the camera, runs on the phone. Open the site once while online, then add it to your home screen from the browser's share menu. On iPhone the home-screen app keeps its saved files, while Safari can clear them for a site that goes unused for a few weeks. If the connection is slow, the app falls back to its saved copy after about 3 seconds.
 
 ## Development
 

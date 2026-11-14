@@ -1,6 +1,8 @@
 // Service worker: network-first for this site's files (so updates show right
-// away), falling back to the cache when offline. Bump VERSION on each release.
-const VERSION = 'v4';
+// away), falling back to the cache when offline or when the network is too
+// slow. Bump VERSION on each release.
+const VERSION = 'v5';
+const NETWORK_TIMEOUT_MS = 3000;
 const CACHE = `cube-coach-${VERSION}`;
 
 const PRECACHE = [
@@ -74,18 +76,32 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    try {
-      const res = await fetch(req);
+    const network = fetch(req).then((res) => {
       if (res.ok) cache.put(req, res.clone()).catch(() => {});
       return res;
+    });
+    // Keep the network fetch alive (it refreshes the cache) even if we answer from cache.
+    event.waitUntil(network.catch(() => {}));
+
+    const cached = () => cache.match(req, { ignoreSearch: true }).then(async (hit) => {
+      if (hit || req.mode !== 'navigate') return hit;
+      return await cache.match('index.html') || await cache.match('./');
+    });
+
+    let timer;
+    const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve('timeout'), NETWORK_TIMEOUT_MS); });
+    try {
+      const first = await Promise.race([network, timeout]);
+      if (first !== 'timeout') return first;
+      // Network is slow: use the cached copy if there is one, else keep waiting.
+      const hit = await cached();
+      return hit || await network;
     } catch {
-      const hit = await cache.match(req, { ignoreSearch: true });
+      const hit = await cached();
       if (hit) return hit;
-      if (req.mode === 'navigate') {
-        const index = await cache.match('index.html') || await cache.match('./');
-        if (index) return index;
-      }
       return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+    } finally {
+      clearTimeout(timer);
     }
   })());
 });
